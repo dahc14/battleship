@@ -21,17 +21,26 @@ wsServer.on('request', function(request) {
 			acceptConnection(request);
 });
 
+/**
+	This class descripes a ship.
+*/
 function Battleship() {
 	this.id = id;
 	this.name = name;
 }
 
+/**
+	This class describes a map.
+*/
 function Map(columns, rows) {
 	this.columns = columns || MAP_DEFAULT_COLUMNS;
 	this.map = [];
 	this.rows = rows || MAP_DEFAULT_ROWS;
 }
 
+/**
+	This class describes a player.
+*/
 function Player(connection) {
 	this.connection = connection;
 	this.map = new Map();
@@ -39,12 +48,18 @@ function Player(connection) {
 	this.shots = [];
 }
 
+/**
+	This class describes a shot.
+*/
 function Shot(id, name) {
 	this.id = id;
 	this.name = name;
 }
 
 Map.prototype = {
+	/**
+		This function adds a ship to the game map.
+	*/
 	addShip: function(size) {
 		var direction = random(1, 4);
 		var position;
@@ -52,13 +67,28 @@ Map.prototype = {
 		do position = random(0, this.columns * this.rows - 1);
 		while(!this.createShip(direction, position, size))
 	},
+	/**
+		This function creates the game map.
+	*/
 	create: function() {
 		for(var i = 0; i < this.columns * this.rows; i++)
 			this.map.push(0);
 	},
+	/**
+		This function creates a ship. If the ship cannot be created, false will be returned, else true.
+	*/
 	createShip: function(direction, position, size) {
 		var positionArray = [];
 
+		/*
+			Following is a couple of mathematic ways to prevent the ships from being created outside the game map.
+			It's also calculates to ships doesn't overlap eachother.
+			The directions is 1 = west, 2 = north, 3 = east, 4 = south.
+			The mathematic calculations is pretty easy, we have a start position for the ship, the size and in what direction the ship
+			should be facing. With this data together with the game map, we can easily calculate if the ship is outside the game plan
+			or overlap another existing ship.
+		*/
+		
 		if(direction == 1) {
 			for(var i = 0; i < size; i++)
 				positionArray.push(position - i);
@@ -103,8 +133,12 @@ Map.prototype = {
 }
 
 Player.prototype = {
+	/**
+		Create a player.
+	*/
 	create: function() {
 		this.map.create();
+		// Create a ship with the size 3.
 		this.map.addShip(3);
 		this.map.addShip(2);
 		
@@ -112,6 +146,9 @@ Player.prototype = {
 		
 		this.generateShots();
 	},
+	/**
+		Deletes the fired shot for available shots.
+	*/
 	deleteShot: function(shot) {
 		for(var i = 0; i < this.shots.length; i++) {
 			if(this.shots[i].id == shot) {
@@ -122,6 +159,9 @@ Player.prototype = {
 			}
 		}
 	},
+	/**
+		Describes what should happen when a shot is fired.
+	*/
 	fire: function(map, shot) {
 		this.deleteShot(shot);
 		
@@ -137,7 +177,8 @@ Player.prototype = {
 		
 		var message;
 		var newMapCharacter;
-			
+		
+		// Update the map depending if it's a hit or not.
 		if(map.map[shot] == 1) {
 			message = "hit";
 			newMapCharacter = "X";
@@ -159,6 +200,7 @@ Player.prototype = {
 				break;
 			}
 		
+		// Game over?
 		if(!hasShipsLeft) {
 			sendMessage("Game over. Player" + (this.connection.id + 1) + " won the game!");
 			
@@ -167,6 +209,9 @@ Player.prototype = {
 		
 		updateMap()
 	},
+	/**
+		Generates shots for the player.
+	*/
 	generateShots: function() {
 		var character;
 		
@@ -177,15 +222,22 @@ Player.prototype = {
 				this.shots.push(new Shot(i * this.map.columns + x, character + "" + (x + 1)));
 		}
 	},
+	/**
+		Update the available locations that you can fire at.
+	*/
 	updateShots: function() {
 		this.connection.sendUTF("Shots:" + JSON.stringify(this.shots));
 	}
 }
 
+/**
+	Describes what will happen a player connects to the server.
+*/
 function acceptConnection(request) {
 	var player = new Player(request.accept('battleship-protocol', request.origin));
 	player.create();
 	
+	// Makes sure that a 3rd player can't join the game.
 	if(players[0] == null || players[1] == null) {
 		if(players[0] == null) {
 			players[0] = player;
@@ -199,6 +251,9 @@ function acceptConnection(request) {
 		
 		sendMessage("Player" + (player.connection.id + 1) + " has joined the game.");
 		
+		// TODO: Split up in more functions. This function is way to big!
+		
+		// Is the game ready to start?
 		if(players[0] != null && players[1] != null) {
 			updateMap();
 			
@@ -212,6 +267,7 @@ function acceptConnection(request) {
 			runningGame = true;
 		}
 		
+		// Bye bye player.
 		player.connection.on('close', function(reasonCode, description) {
 			var id = player.connection.id;
 			
@@ -219,6 +275,7 @@ function acceptConnection(request) {
 			
 			sendMessage("Player" + (id + 1) + " disconnected.");
 			
+			// Let the other player know that the game is over.
 			if(runningGame)
 				sendMessage("Since the game already started, you won the game! If you want to play again, please disconnect and connect again.");
 			
@@ -227,6 +284,7 @@ function acceptConnection(request) {
 			runningGame = false;
 		});
 		player.connection.on('message', function(message) {
+			// Is the player fire a shot or sending a message?
 			if(message.utf8Data.indexOf("Fire:") != -1) {
 				if(runningGame && playersTurn == player) {
 					var id;
@@ -251,25 +309,40 @@ function acceptConnection(request) {
 		player.connection.sendUTF("There is already a game going on. Please wait until the game is finished and the players has disconnected.");
 }
 
+/**
+	Escape the message.
+*/
 function htmlEntities(str) {
 	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+	Get the next character in the alphabet.
+*/
 function nextCharacter(character) {
 	if(character == undefined)
 		return "A";
 	return String.fromCharCode(character.charCodeAt(0) + 1);
 }
 
+/**
+	Create a random number.
+*/
 function random(min, max) {
 	return Math.floor(Math.random() * (max + 1 - min) + min);
 }
 
+/**
+	Send a message to all connected clients.
+*/
 function sendMessage(message) {
 	for(var i = 0; i < players.length; i++)
 		players[i].connection.sendUTF(message);
 }
 
+/**
+	Update the map.
+*/
 function updateMap() {
 	for(var i = 0; i < players.length; i++) {
 		players[i].connection.sendUTF("GameArea:" + JSON.stringify(players[i].map.map));

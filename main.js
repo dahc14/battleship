@@ -2,7 +2,7 @@ $(document).ready(function() {
 	'use strict';
 
 	var	output = $('#output'),
-	url = 'ws://127.0.0.1:8186/',
+	url = 'ws://nodejs1.student.bth.se:8186/',
 	websocket = null;
 	
 	function outputLog(message) {
